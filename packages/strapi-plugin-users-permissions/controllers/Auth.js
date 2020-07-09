@@ -186,7 +186,7 @@ module.exports = {
     ) {
       const user = await strapi
         .query('user', 'users-permissions')
-        .findOne({ resetPasswordToken: `${params.code}` });
+        .findOne({ tempResetToken: `${params.code}` });
 
       if (!user) {
         return ctx.badRequest(
@@ -199,16 +199,16 @@ module.exports = {
       }
 
       // Delete the current code
-      user.resetPasswordToken = null;
+      // user.resetPasswordToken = null;
 
-      user.password = await strapi.plugins[
+      let updatedPassword = await strapi.plugins[
         'users-permissions'
       ].services.user.hashPassword(params);
 
       // Update the user.
       await strapi
         .query('user', 'users-permissions')
-        .update({ id: user.id }, user);
+        .update({ id: user.id }, { password: updatedPassword });
 
       ctx.send({
         jwt: strapi.plugins['users-permissions'].services.jwt.issue({
@@ -300,7 +300,7 @@ module.exports = {
     const resetPasswordToken = crypto.randomBytes(64).toString('hex');
 
     // Set the property code.
-    user.resetPasswordToken = resetPasswordToken;
+    user.tempResetToken = resetPasswordToken;
 
     const settings = await pluginStore
       .get({ key: 'email' })
@@ -360,7 +360,7 @@ module.exports = {
     // Update the user.
     await strapi
       .query('user', 'users-permissions')
-      .update({ id: user.id }, user);
+      .update({ id: user.id }, { tempResetToken: resetPasswordToken });
 
     ctx.send({ ok: true });
   },
@@ -565,9 +565,9 @@ module.exports = {
     } catch (err) {
       const adminError = _.includes(err.message, 'username')
         ? {
-            id: 'Auth.form.error.username.taken',
-            message: 'Username already taken',
-          }
+          id: 'Auth.form.error.username.taken',
+          message: 'Username already taken',
+        }
         : { id: 'Auth.form.error.email.taken', message: 'Email already taken' };
 
       ctx.badRequest(null, formatError(adminError));
